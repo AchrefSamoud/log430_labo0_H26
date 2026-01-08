@@ -1,0 +1,7 @@
+@startuml
+    start
+        :Saisir les valeurs;
+        :Effectuer une opération;
+        :Voir le résultat;
+    stop
+@enduml

@@ -1,0 +1,7 @@
+@startuml
+  node MachineVirtuelle {
+      node Conteneur {
+        component "calculator.py" 
+      }
+  }
+@enduml
