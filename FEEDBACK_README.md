@@ -1,12 +1,41 @@
-# Retour sur les instructions du README - Étape 6 (Création de VM LXD)
+# Retour sur les instructions du README.md
 
 **Étudiant** : Achref Samoud  
 **Date** : 8 janvier 2026  
-**Section problématique** : Étape 6 - Créer des VMs dans votre serveur LXD
+**Laboratoire** : LOG430 - Labo 0 - Infrastructure (Git, Docker, CI/CD)
 
 ---
 
-## 🐛 Problèmes rencontrés
+## 📋 Résumé exécutif
+
+Ce document identifie les **problèmes critiques** dans le README.md initial qui empêchent les étudiants de compléter le laboratoire. Les instructions données ne fonctionnent pas avec la configuration actuelle du serveur LXD.
+
+### Problèmes majeurs identifiés :
+1. ❌ Syntaxe LXD incorrecte (flag `--remote` non supporté)
+2. ❌ Profil LXD non configuré (bloque la création de VM)
+3. ❌ Type d'instance incorrect (CONTAINER au lieu de VM - Docker ne fonctionne pas)
+4. ❌ Configuration réseau manquante (VM sans IP)
+5. ❌ SSH non accessible avec réseau interne (IP locale non routable)
+6. ✅ **SOLUTION SSH** : Utiliser réseau `br0` avec IP publique de l'école
+
+---
+
+## ⚠️ QUOTAS DU PROJET - IMPORTANT
+
+**Chaque étudiant a les limites suivantes sur `log430-student-X`** :
+
+| Ressource | Limite | Commande de vérification |
+|-----------|--------|--------------------------|
+| **Stockage total** | **50 GB** | `lxc project show fiware-1:log430-student-1` |
+| **RAM maximale** | **8 GB** | Configuration via `limits.memory` |
+| **Nombre de VMs** | **1 maximum** | `limits.virtual-machines: "1"` |
+| **Nombre de conteneurs** | **10 maximum** | `limits.containers: "10"` |
+
+⚠️ **Attention** : Le quota de VM est de **1 seule VM maximum**. Ne créez pas plusieurs VMs, sinon vous devrez en supprimer.
+
+---
+
+## 🐛 Problèmes critiques avec le README.md
 
 ### 1. Syntaxe de la commande incorrecte dans le README
 
@@ -94,13 +123,19 @@ lxc profile set fiware-1:default limits.memory=4GB
 
 #### 6.1. Créer une VM
 
-Pour créer une VM dans le serveur `fiware-1.logti.etsmtl.ca` :
+⚠️ **SOLUTION CRITIQUE** : Il faut utiliser le flag `--vm` pour créer une vraie machine virtuelle :
 
 ```bash
+# ❌ MAUVAIS - Crée un CONTAINER (Docker ne fonctionnera pas)
 lxc launch ubuntu:22.04 fiware-1:vm-test1
+
+# ✅ CORRECT - Crée une VIRTUAL-MACHINE (Docker fonctionne)
+lxc launch ubuntu:22.04 fiware-1:vm-test1 --vm
 ```
 
 Remplacez `vm-test1` par le nom que vous voulez donner à votre VM.
+
+**Pourquoi le flag --vm est crucial** : Sans ce flag, LXD crée un conteneur (TYPE=CONTAINER) au lieu d'une VM. Docker ne peut pas fonctionner dans un conteneur LXC à cause des restrictions de cgroups.
 
 #### 6.2. Vérifier la création de la VM
 
@@ -109,6 +144,8 @@ Pour voir la liste de VMs sur le serveur :
 ```bash
 lxc list fiware-1:
 ```
+
+Vérifiez que la colonne **TYPE** affiche **VIRTUAL-MACHINE** (pas CONTAINER).
 
 #### 6.3. Obtenir l'adresse IP de la VM
 
@@ -120,11 +157,11 @@ Notez l'adresse IP de votre VM (colonne IPV4). Cela peut prendre quelques second
 
 Exemple de sortie :
 ```
-+----------+---------+----------------+------+-----------+-----------+
-| NAME     | STATE   | IPV4           | IPV6 | TYPE      | SNAPSHOTS |
-+----------+---------+----------------+------+-----------+-----------+
-| vm-test1 | RUNNING | 10.99.0.50     |      | CONTAINER | 0         |
-+----------+---------+----------------+------+-----------+-----------+
++----------+---------+----------------+------+-----------------+-----------+
+| NAME     | STATE   | IPV4           | IPV6 | TYPE            | SNAPSHOTS |
++----------+---------+----------------+------+-----------------+-----------+
+| vm-test1 | RUNNING | 10.99.0.50     |      | VIRTUAL-MACHINE | 0         |
++----------+---------+----------------+------+-----------------+-----------+
 ```
 
 ---
@@ -323,40 +360,189 @@ lxc list fiware-1:
 
 ## ✅ Déploiement Docker réussi dans la VM
 
-### Résumé des étapes qui ont fonctionné :
+### Étapes complètes pour déployer l'application :
 
-1. **Créer la VM avec --vm** :
-   ```bash
-   lxc launch ubuntu:22.04 fiware-1:vm-achref-log430 --vm
-   ```
+#### 1. Créer la VM avec --vm
+```bash
+lxc launch ubuntu:22.04 fiware-1:vm-achref-log430 --vm
+```
 
-2. **Ajouter l'interface réseau au profil** :
-   ```bash
-   lxc profile device add fiware-1:default eth0 nic nictype=bridged parent=lxdbr0
-   lxc restart fiware-1:vm-achref-log430
-   ```
+#### 2. Ajouter l'interface réseau
+```bash
+# Option A : Ajouter au profil default (recommandé, s'applique à toutes les VMs)
+lxc profile device add fiware-1:default eth0 nic nictype=bridged parent=lxdbr0
 
-3. **Installer Docker et Git** :
-   ```bash
-   lxc exec fiware-1:vm-achref-log430 -- bash -c "apt update ; apt install -y git docker.io docker-compose"
-   ```
+# Option B : Ajouter directement à la VM
+lxc config device add fiware-1:vm-achref-log430 eth0 nic nictype=bridged parent=lxdbr0
 
-4. **Cloner le repository** :
-   ```bash
-   lxc exec fiware-1:vm-achref-log430 -- bash -c "cd ~ ; git clone https://github.com/AchrefSamoud/log430_labo0_H26.git"
-   ```
+# Redémarrer la VM pour appliquer les changements réseau
+lxc restart fiware-1:vm-achref-log430
+```
 
-5. **Builder et lancer l'application** :
-   ```bash
-   lxc exec fiware-1:vm-achref-log430 -- bash -c "cd ~/log430_labo0_H26 ; docker-compose build"
-   lxc exec fiware-1:vm-achref-log430 -- bash -c "cd ~/log430_labo0_H26 ; docker-compose up -d"
-   ```
+⏱️ **Attendre 30-40 secondes** que la VM redémarre et obtienne une IP.
 
-6. **Tester l'application** :
-   ```bash
-   lxc exec fiware-1:vm-achref-log430 -- bash -c "cd ~/log430_labo0_H26 ; docker-compose exec -T calculator pytest src/tests/ -v"
-   ```
+#### 3. Vérifier l'IP de la VM
+```bash
+lxc list fiware-1:
+# La colonne IPV4 doit afficher une IP (ex: 192.168.1.xxx)
+```
 
-**Résultat** : ✅ 7 tests passed in 0.05s
+#### 4. Installer Docker et Git
+```bash
+lxc exec fiware-1:vm-achref-log430 -- bash -c "apt update && apt install -y git docker.io docker-compose"
+```
+
+#### 5. Cloner le repository
+```bash
+lxc exec fiware-1:vm-achref-log430 -- bash -c "cd ~ && git clone https://github.com/AchrefSamoud/log430_labo0_H26.git"
+```
+
+#### 6. Builder et lancer l'application
+```bash
+# Builder l'image Docker
+lxc exec fiware-1:vm-achref-log430 -- bash -c "cd ~/log430_labo0_H26 && docker-compose build"
+
+# Lancer les conteneurs en arrière-plan
+lxc exec fiware-1:vm-achref-log430 -- bash -c "cd ~/log430_labo0_H26 && docker-compose up -d"
+```
+
+#### 7. Tester l'application
+```bash
+lxc exec fiware-1:vm-achref-log430 -- bash -c "cd ~/log430_labo0_H26 && docker-compose exec -T calculator pytest src/tests/ -v"
+```
+
+**Résultat attendu** : ✅ 7 tests passed in 0.05s
+
+---
+
+## ✅ Configuration SSH avec IP publique (Réseau br0)
+
+### Contexte du problème :
+Les instructions du README.md (étapes 6.3-6.6 et étape 7) expliquent comment configurer SSH dans la VM, mais ne fonctionnent pas avec le réseau interne LXD (lxdbr0) car l'adresse IP 192.168.1.x n'est pas routable depuis votre machine locale.
+
+### Solution : Configuration réseau br0 avec IP publique
+
+Selon la documentation réseau fournie par l'instructeur, les étudiants ont accès à une plage d'IP publiques : **10.194.32.155-253** via le bridge **br0**.
+
+### Étapes de configuration :
+
+#### 1. Reconfigurer l'interface réseau de la VM
+
+```bash
+# Changer le parent de eth0 de lxdbr0 vers br0
+lxc config device override fiware-1:vm-achref-log430 eth0
+lxc config device set fiware-1:vm-achref-log430 eth0 parent=br0
+
+# Redémarrer la VM pour appliquer les changements
+lxc restart fiware-1:vm-achref-log430
+```
+
+#### 2. Configurer une IP statique dans la VM
+
+Créer le fichier `/etc/netplan/50-cloud-init.yaml` dans la VM :
+
+```bash
+lxc exec fiware-1:vm-achref-log430 -- bash -c "cat > /etc/netplan/50-cloud-init.yaml <<'EOF'
+network:
+  version: 2
+  ethernets:
+    enp5s0:
+      dhcp4: no
+      addresses:
+        - 10.194.32.155/24
+      routes:
+        - to: default
+          via: 10.194.32.1
+      nameservers:
+        addresses:
+          - 10.162.8.10
+          - 10.162.8.11
+EOF"
+```
+
+**Note** : Utilisez une adresse IP de la plage 10.194.32.155-253 qui vous est assignée.
+
+**Important** : La syntaxe `gateway4` est deprecated. Utilisez `routes` avec `to: default` comme montré ci-dessus.
+
+#### 3. Appliquer la configuration réseau
+
+```bash
+lxc exec fiware-1:vm-achref-log430 -- netplan apply
+```
+
+**Note** : Si vous voyez des warnings sur Open vSwitch ou systemd-networkd, ils sont sans conséquence et la configuration réseau sera appliquée correctement.
+
+#### 4. Vérifier l'IP assignée
+
+```bash
+lxc exec fiware-1:vm-achref-log430 -- ip addr show enp5s0
+```
+
+Vous devriez voir : `inet 10.194.32.155/24`
+
+#### 5. Installer le serveur SSH (si pas déjà fait)
+
+```bash
+lxc exec fiware-1:vm-achref-log430 -- bash -c "apt update && apt install -y openssh-server"
+```
+
+#### 6. Copier votre clé SSH publique
+
+```bash
+# Créer le dossier .ssh si nécessaire
+lxc exec fiware-1:vm-achref-log430 -- mkdir -p /root/.ssh
+
+# Copier la clé publique
+lxc file push ~/.ssh/lxd_key.pub fiware-1:vm-achref-log430/root/.ssh/authorized_keys
+
+# Définir les permissions correctes
+lxc exec fiware-1:vm-achref-log430 -- chmod 700 /root/.ssh
+lxc exec fiware-1:vm-achref-log430 -- chmod 600 /root/.ssh/authorized_keys
+```
+
+#### 7. Tester la connexion SSH
+
+```bash
+# Test simple : obtenir le hostname
+ssh -i ~/.ssh/lxd_key root@10.194.32.155 hostname
+
+# Test complet : exécuter une commande Docker
+ssh -i ~/.ssh/lxd_key root@10.194.32.155 'docker ps'
+```
+
+**Résultat attendu** : 
+- Première commande retourne : `vm-achref-log430`
+- Deuxième commande liste les conteneurs Docker actifs
+
+### Avantages de cette configuration :
+
+✅ **Accès direct** : SSH fonctionne directement depuis votre machine locale sans tunnel  
+✅ **IP routable** : L'adresse 10.194.32.155 est accessible sur le réseau de l'ÉTS  
+✅ **Pas de proxy** : Plus besoin de passer par fiware-1 comme intermédiaire  
+✅ **Compatible CI/CD** : Le GitHub Runner peut toujours fonctionner avec cette configuration
+
+### Configuration réseau finale :
+
+| Paramètre | Valeur |
+|-----------|--------|
+| Interface | enp5s0 |
+| Bridge | br0 (réseau public) |
+| Adresse IP | 10.194.32.155/24 |
+| Gateway | 10.194.32.1 |
+| DNS | 10.162.8.10, 10.162.8.11 |
+| Plage disponible | 10.194.32.155-253 |
+
+### Exemple de session SSH complète :
+
+```bash
+# Se connecter à la VM
+ssh -i ~/.ssh/lxd_key root@10.194.32.155
+
+# Une fois connecté, vous pouvez :
+cd ~/log430_labo0_H26
+docker-compose ps
+docker-compose logs
+```
 
 ```
+````
