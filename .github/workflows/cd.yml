@@ -13,27 +13,18 @@ jobs:
       
     - name: Stop existing containers
       run: |
-        cd ~/log430_labo0_H26
         docker-compose down || true
-      
-    - name: Pull latest changes
-      run: |
-        cd ~/log430_labo0_H26
-        git pull origin main
       
     - name: Build Docker image
       run: |
-        cd ~/log430_labo0_H26
         docker-compose build
       
     - name: Start containers
       run: |
-        cd ~/log430_labo0_H26
         docker-compose up -d
       
     - name: Run tests
       run: |
-        cd ~/log430_labo0_H26
         docker-compose exec -T calculator pytest src/tests/ -v
       
     - name: Deployment status
